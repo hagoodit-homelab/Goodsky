@@ -34,7 +34,15 @@ A personal iOS + Apple Watch weather app that answers one question fast:
    - Otherwise, coldest feels-like < 45°F → ❄️ **Real coat**; < 62°F → 🧥 **Jacket**.
    - A windy day (≥ 20 mph) within 8° of the jacket threshold → 🧥 **Jacket**.
    - Otherwise → 😎 **No jacket**.
-4. Add one reason line and one snark line. The snark line is picked deterministically per day and
+4. Work out **now vs later**. "Now" is the first 2 hours of the window, when you step out. Each
+   hour gets its own verdict, and the call gets a timing:
+   - **All day**: you need it now and later (cold at both ends counts, even with a warm midday).
+   - **Later**: fine when you head out, needed from a set hour → "Jacket later" ("Fine without
+     one now, but you'll want it by 5 PM.").
+   - **For now**: needed now, then it warms up or dries out with at least 2 hours to spare →
+     "Jacket for now" ("Wear it now; you can ditch it by 11 AM.").
+   - **Step up**: one thing now, something heavier later ("Jacket now, rain jacket by 3 PM.").
+5. Add one reason line and one snark line. The snark line is picked deterministically per day and
    situation, so it doesn't change on every refresh.
 
 All thresholds are in Settings and shared with the widgets through the App Group. The watch gets

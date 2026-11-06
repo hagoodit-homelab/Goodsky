@@ -84,7 +84,7 @@ struct JacketWidgetView: View {
         let temp = Format.degrees(report.temperatureF)
         switch family {
         case .accessoryInline:
-            Text("\(call.verdict.emoji) \(call.verdict.shortTitle) · \(temp)")
+            Text("\(call.verdict.emoji) \(call.shortHeadline) · \(temp)")
 
         case .accessoryCircular:
             ZStack {
@@ -97,7 +97,7 @@ struct JacketWidgetView: View {
 
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(call.verdict.emoji) \(call.verdict.title)")
+                Text("\(call.verdict.emoji) \(call.headline)")
                     .font(.headline)
                     .widgetAccentable()
                 Text("\(temp) · \(shortReason(call, report: report))")
@@ -113,14 +113,14 @@ struct JacketWidgetView: View {
         case .accessoryCorner:
             Text(call.verdict.emoji)
                 .font(.title2)
-                .widgetLabel("\(call.verdict.shortTitle) · \(temp)")
+                .widgetLabel("\(call.shortHeadline) · \(temp)")
         #endif
 
         case .systemMedium:
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(call.verdict.emoji).font(.system(size: 40))
-                    Text(call.verdict.title).font(.headline)
+                    Text(call.headline).font(.headline)
                     Text(temp).font(.title2.bold())
                 }
                 VStack(alignment: .leading, spacing: 6) {
@@ -143,7 +143,7 @@ struct JacketWidgetView: View {
                     Spacer()
                     Text(temp).font(.title2.bold())
                 }
-                Text(call.verdict.title).font(.headline)
+                Text(call.headline).font(.headline)
                 Text(call.reason).font(.caption2).foregroundStyle(.secondary).lineLimit(3)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -159,9 +159,17 @@ struct JacketWidgetView: View {
         }
     }
 
-    /// Fits the rectangular complication's middle line: "rain 3 PM", "low 48°".
+    /// Fits the rectangular complication's middle line: "rain 3 PM", "feels 48°", "need by 5 PM".
     private func shortReason(_ call: JacketCall, report: GoodskyReport) -> String {
         let cal = report.snapshot.calendar
+        switch call.timing {
+        case .later(let from) where call.firstWetHour != from:
+            return "need by \(Format.hour(from, calendar: cal))"
+        case .nowOnly(let until):
+            return "ditch by \(Format.hour(until, calendar: cal))"
+        default:
+            break
+        }
         if let wet = call.firstWetHour {
             let noun = call.precipKind.noun
             return wet <= report.date ? "\(noun) now" : "\(noun) \(Format.hour(wet, calendar: cal))"

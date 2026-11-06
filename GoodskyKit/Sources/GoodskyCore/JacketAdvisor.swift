@@ -33,9 +33,27 @@ public enum JacketVerdict: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// When during the window the verdict actually applies.
+///
+/// The verdict is always "what to bring" for the whole window. Timing says whether you need it
+/// the moment you step out, only later, or only for the first stretch.
+public enum JacketTiming: Codable, Sendable, Equatable {
+    /// Same need the whole time (or no need at all).
+    case allDay
+    /// Fine without it now; you'll want it from `from`.
+    case later(from: Date)
+    /// Need it now; you can ditch it from `until` on.
+    case nowOnly(until: Date)
+    /// Need `now` right away, then something heavier/different (the verdict) from `at`.
+    case stepUp(now: JacketVerdict, at: Date)
+}
+
 /// The verdict plus the facts behind it.
 public struct JacketCall: Codable, Sendable, Equatable {
+    /// What to bring for the whole window.
     public var verdict: JacketVerdict
+    /// Whether you need it right away or only later. See `JacketTiming`.
+    public var timing: JacketTiming = .allDay
     /// One line explaining why, e.g. "Rain likely from 3 PM (70%). Feels like 48° at the coldest."
     public var reason: String
     public var windowStart: Date
@@ -50,6 +68,21 @@ public struct JacketCall: Codable, Sendable, Equatable {
     public var maxWindMph: Double
     /// True when wind alone bumped a "no jacket" day to a jacket.
     public var windBumped: Bool
+
+    /// Headline for the hero spot: "Jacket", "Jacket later", "Jacket for now".
+    public var headline: String { verdict.title + timingSuffix }
+
+    /// Short headline for tight spots: "Rain jkt later".
+    public var shortHeadline: String { verdict.shortTitle + timingSuffix }
+
+    private var timingSuffix: String {
+        guard verdict != .noJacket else { return "" }
+        switch timing {
+        case .later: return " later"
+        case .nowOnly: return " for now"
+        case .allDay, .stepUp: return ""
+        }
+    }
 }
 
 public enum JacketAdvisor {
@@ -72,6 +105,11 @@ public enum JacketAdvisor {
         return DateInterval(start: now, duration: 12 * 3600)
     }
 
+    /// How long "now" is: the first stretch of the window, when you're stepping out.
+    public static let nowSpan: TimeInterval = 2 * 3600
+    /// A "ditch it by" call needs at least this much jacket-free time left in the window to be worth saying.
+    static let minFreeTail: TimeInterval = 2 * 3600
+
     /// Make the Jacket Call for the rest of today. Returns `nil` when the forecast has no hours in the window.
     public static func call(hourly: [HourForecast], now: Date, settings: JacketSettings = .default,
                             calendar: Calendar = .current) -> JacketCall? {
@@ -80,12 +118,42 @@ public enum JacketAdvisor {
         let hours = hourly
             .filter { $0.date < window.end && $0.date.addingTimeInterval(3600) > window.start }
             .sorted { $0.date < $1.date }
+        guard let all = assess(hours, settings: s) else { return nil }
+
+        let timing = timing(hours: hours, overall: all.verdict, window: window, settings: s)
+        let reason = reasonLine(verdict: all.verdict, timing: timing, headingOut: now < window.start,
+                                window: window, coldest: all.coldest, warmest: all.warmest,
+                                firstWet: all.firstWet, wetKind: all.wetKind, maxWind: all.maxWind,
+                                windBumped: all.windBumped, settings: s, calendar: calendar)
+
+        return JacketCall(verdict: all.verdict, timing: timing, reason: reason,
+                          windowStart: window.start, windowEnd: window.end,
+                          minFeelsLikeF: all.coldest.feelsLikeF, maxFeelsLikeF: all.warmest.feelsLikeF,
+                          coldestHour: all.coldest.date, firstWetHour: all.firstWet?.date,
+                          peakPrecipChance: all.peakChance, precipKind: all.wetKind,
+                          maxWindMph: all.maxWind, windBumped: all.windBumped)
+    }
+
+    // MARK: - Verdict
+
+    /// The facts and verdict for a run of hours. All temperature decisions use feels-like
+    /// (WeatherKit's apparent temperature, which already folds in wind chill and humidity).
+    struct Assessment {
+        var verdict: JacketVerdict
+        var windBumped: Bool
+        var coldest: HourForecast
+        var warmest: HourForecast
+        var firstWet: HourForecast?
+        var wetKind: PrecipKind
+        var peakChance: Double
+        var maxWind: Double
+    }
+
+    static func assess(_ hours: [HourForecast], settings s: JacketSettings) -> Assessment? {
         guard let coldest = hours.min(by: { $0.feelsLikeF < $1.feelsLikeF }),
               let warmest = hours.max(by: { $0.feelsLikeF < $1.feelsLikeF }) else { return nil }
 
-        let wetHours = hours.filter {
-            $0.precipChance >= s.rainChanceThreshold && $0.precipAmountIn >= s.minRainAmountIn
-        }
+        let wetHours = hours.filter { isWet($0, s) }
         let firstWet = wetHours.first
         let peakChance = hours.map(\.precipChance).max() ?? 0
         let maxWind = hours.map(\.windMph).max() ?? 0
@@ -108,24 +176,89 @@ public enum JacketAdvisor {
         } else {
             verdict = .noJacket
         }
+        return Assessment(verdict: verdict, windBumped: windBumped, coldest: coldest, warmest: warmest,
+                          firstWet: firstWet, wetKind: wetKind, peakChance: peakChance, maxWind: maxWind)
+    }
 
-        let reason = reasonLine(verdict: verdict, window: window, coldest: coldest, warmest: warmest,
-                                firstWet: firstWet, wetKind: wetKind, maxWind: maxWind,
-                                windBumped: windBumped, settings: s, calendar: calendar)
+    static func isWet(_ h: HourForecast, _ s: JacketSettings) -> Bool {
+        h.precipChance >= s.rainChanceThreshold && h.precipAmountIn >= s.minRainAmountIn
+    }
 
-        return JacketCall(verdict: verdict, reason: reason, windowStart: window.start, windowEnd: window.end,
-                          minFeelsLikeF: minFeels, maxFeelsLikeF: warmest.feelsLikeF,
-                          coldestHour: coldest.date, firstWetHour: firstWet?.date,
-                          peakPrecipChance: peakChance, precipKind: wetKind,
-                          maxWindMph: maxWind, windBumped: windBumped)
+    /// The verdict for a single hour.
+    static func verdict(for hour: HourForecast, settings s: JacketSettings) -> JacketVerdict {
+        assess([hour], settings: s)?.verdict ?? .noJacket
+    }
+
+    // MARK: - Timing
+
+    /// Now vs later: compares the first `nowSpan` of the window against the hour-by-hour need.
+    static func timing(hours: [HourForecast], overall: JacketVerdict, window: DateInterval,
+                       settings s: JacketSettings) -> JacketTiming {
+        guard overall != .noJacket else { return .allDay }
+        let nowEnd = window.start.addingTimeInterval(nowSpan)
+        let nowHours = hours.filter { $0.date < nowEnd }
+        let laterHours = hours.filter { $0.date >= nowEnd }
+        // Window too short to have a "later" (e.g. last hour of the day): nothing to split.
+        guard !laterHours.isEmpty, let nowVerdict = assess(nowHours, settings: s)?.verdict else { return .allDay }
+
+        let perHour = hours.map { (hour: $0, verdict: verdict(for: $0, settings: s)) }
+
+        // Fine right now; the need shows up later.
+        if nowVerdict == .noJacket {
+            guard let first = perHour.first(where: { $0.hour.date >= nowEnd && $0.verdict != .noJacket })
+            else { return .allDay }
+            return .later(from: max(first.hour.date, window.start))
+        }
+
+        // Need something now, and something heavier/different later (jacket now, rain from 3 PM).
+        if nowVerdict != overall,
+           let first = perHour.first(where: { $0.hour.date >= nowEnd && $0.verdict == overall }) {
+            return .stepUp(now: nowVerdict, at: first.hour.date)
+        }
+
+        // Need it now, but it warms up / dries out and stays that way.
+        if let lastNeed = perHour.last(where: { $0.verdict != .noJacket }) {
+            let freeFrom = lastNeed.hour.date.addingTimeInterval(3600)
+            if window.end.timeIntervalSince(freeFrom) >= minFreeTail {
+                return .nowOnly(until: freeFrom)
+            }
+        }
+        return .allDay
     }
 
     // MARK: - Reason text
 
-    static func reasonLine(verdict: JacketVerdict, window: DateInterval, coldest: HourForecast,
+    static func reasonLine(verdict: JacketVerdict, timing: JacketTiming, headingOut: Bool,
+                           window: DateInterval, coldest: HourForecast,
                            warmest: HourForecast, firstWet: HourForecast?, wetKind: PrecipKind,
                            maxWind: Double, windBumped: Bool, settings: JacketSettings,
                            calendar: Calendar) -> String {
+        let base = conditionsLine(verdict: verdict, window: window, coldest: coldest, warmest: warmest,
+                                  firstWet: firstWet, wetKind: wetKind, maxWind: maxWind,
+                                  windBumped: windBumped, settings: settings, calendar: calendar)
+        let now = headingOut ? "when you head out" : "now"
+        let item = verdict == .realCoat ? "the coat" : "it"
+        switch timing {
+        case .allDay:
+            return base
+        case .later(let from):
+            // The rain line already says "from 3 PM"; don't say the time twice.
+            if let wet = firstWet, wet.date == from {
+                return "Fine without one \(now), but bring \(item). \(base)"
+            }
+            return "Fine without one \(now), but you'll want \(item) by \(Format.hour(from, calendar: calendar)). \(base)"
+        case .nowOnly(let until):
+            return "Wear \(item) \(now); you can ditch it by \(Format.hour(until, calendar: calendar)). \(base)"
+        case .stepUp(let nowVerdict, let at):
+            return "\(nowVerdict.title) \(now), \(verdict.title.lowercased()) by \(Format.hour(at, calendar: calendar)). \(base)"
+        }
+    }
+
+    /// The weather facts behind the verdict, without timing.
+    static func conditionsLine(verdict: JacketVerdict, window: DateInterval, coldest: HourForecast,
+                               warmest: HourForecast, firstWet: HourForecast?, wetKind: PrecipKind,
+                               maxWind: Double, windBumped: Bool, settings: JacketSettings,
+                               calendar: Calendar) -> String {
         let lo = Format.degrees(coldest.feelsLikeF)
         let hi = Format.degrees(warmest.feelsLikeF)
 

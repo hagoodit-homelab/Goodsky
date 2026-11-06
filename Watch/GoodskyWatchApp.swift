@@ -64,7 +64,7 @@ private struct CallPage: View {
                         Spacer()
                         Text(Format.degrees(report.temperatureF)).font(.title2.bold())
                     }
-                    Text(call.verdict.title).font(.headline)
+                    Text(call.headline).font(.headline)
                     Text(call.reason).font(.footnote)
                     Text(model.snark).font(.footnote.italic()).foregroundStyle(.secondary)
                     FeedbackControls(call: call).padding(.top, 4)
