@@ -38,6 +38,44 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Toggle("On-device AI snark", isOn: $model.aiSnarkEnabled)
+                } header: {
+                    Text("Snark")
+                } footer: {
+                    if model.aiSnarkEnabled, let reason = SnarkWriter.unavailableReason {
+                        Text(reason)
+                    } else {
+                        Text("Apple's on-device model writes the app's line. If it gets prudish or boring, you get the hand-written ones. Widgets and the watch always use the hand-written ones.")
+                    }
+                }
+
+                Section {
+                    let history = model.feedbackHistory.suffix(7).reversed()
+                    if history.isEmpty {
+                        Text("Tap 👍 or 👎 under the Jacket Call and I'll tune these numbers for you.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(history), id: \.day) { record in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(record.day) · \(record.verdict.emoji) \(record.verdict.title) · \(record.feedback.label)")
+                                    .font(.footnote)
+                                let changes = ThresholdTuner.describeChanges(from: record.before, to: record.after)
+                                if !changes.isEmpty {
+                                    Text(changes.joined(separator: ", "))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        Button("Clear history", role: .destructive) { model.clearFeedbackHistory() }
+                    }
+                } header: {
+                    Text("Your feedback")
+                } footer: {
+                    Text("Each 👎 moves one threshold a few degrees. It never undoes manual changes.")
+                }
+
                 Section("Units") {
                     LabeledContent("Temperature", value: "°F")
                 }

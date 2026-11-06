@@ -11,9 +11,17 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     if let report = model.report {
-                        JacketCallCard(report: report)
+                        if let banner = report.alertBanner {
+                            AlertBannerView(banner: banner)
+                        }
+                        JacketCallCard(report: report, snark: model.snark)
                         CurrentConditionsCard(report: report)
-                        NextHourCard(summary: report.nextHour)
+                        NavigationLink {
+                            RadarView(report: report)
+                        } label: {
+                            NextHourCard(summary: report.nextHour)
+                        }
+                        .buttonStyle(.plain)
                         HourlyStrip(report: report)
                         DailyList(report: report)
                     } else if model.status == .loading {

@@ -117,10 +117,12 @@ public struct WeatherSnapshot: Codable, Sendable, Equatable {
     public var daily: [DayForecast]
     /// `nil` when WeatherKit has no minute-by-minute data for this location.
     public var minutes: [MinuteForecast]?
+    /// Active weather alerts. `nil` in snapshots cached before alerts existed, or when unavailable.
+    public var alerts: [WeatherAlertInfo]?
 
     public init(fetchedAt: Date, latitude: Double, longitude: Double, timeZoneIdentifier: String,
                 current: CurrentConditions, hourly: [HourForecast], daily: [DayForecast],
-                minutes: [MinuteForecast]?) {
+                minutes: [MinuteForecast]?, alerts: [WeatherAlertInfo]? = nil) {
         self.fetchedAt = fetchedAt
         self.latitude = latitude
         self.longitude = longitude
@@ -129,6 +131,7 @@ public struct WeatherSnapshot: Codable, Sendable, Equatable {
         self.hourly = hourly
         self.daily = daily
         self.minutes = minutes
+        self.alerts = alerts
     }
 
     public var timeZone: TimeZone { TimeZone(identifier: timeZoneIdentifier) ?? .current }

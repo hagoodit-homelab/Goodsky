@@ -3,7 +3,7 @@
 A personal iOS + Apple Watch weather app that answers one question fast:
 **do I need a jacket, a rain jacket, or nothing today?** It comes with attitude.
 
-## What's here (Phase 0 + Phase 1)
+## What's here (Phases 0–2)
 
 | Piece | Where |
 |---|---|
@@ -13,7 +13,12 @@ A personal iOS + Apple Watch weather app that answers one question fast:
 | WeatherKit → core model mapping, location, widget fetch/cache | `GoodskyKit/Sources/GoodskyWeather/` |
 | iPhone app: Jacket Call hero, current conditions, next hour, 48h hourly, 10-day, Settings, Apple Weather attribution | `App/iOS`, `App/Shared` |
 | iPhone home + lock screen widgets, Watch complications / Smart Stack (one shared source) | `Widgets/` |
-| Minimal watch app (hosts the complication, refreshes location) | `Watch/` |
+| Watch companion app: Jacket Call + 👍/👎, next-hour chart, hourly, 10-day | `Watch/` |
+| Minimal radar: plain-English next hour on top, past-hour loop, light/moderate/heavy colors | `App/iOS/Radar/`, `GoodskyCore/Radar.swift` |
+| 👍/👎 "was this right?" threshold tuning (pure, unit-tested) | `GoodskyCore/ThresholdTuner.swift`, `App/Shared/FeedbackControls.swift` |
+| Foundation Models snark with the template fallback | `App/Shared/SnarkWriter.swift`, `GoodskyCore/SnarkPrompt.swift` |
+| Weather alerts banner (display only) | `GoodskyCore/Alerts.swift`, `App/iOS/AlertBannerView.swift` |
+| Phone ↔ watch settings sync (WatchConnectivity, newest wins) | `App/Shared/SettingsSync.swift` |
 | Xcode project spec (XcodeGen) | `project.yml` |
 | Xcode Cloud hook | `ci_scripts/ci_post_clone.sh` |
 
@@ -32,7 +37,35 @@ A personal iOS + Apple Watch weather app that answers one question fast:
 4. Add one reason line and one snark line. The snark line is picked deterministically per day and
    situation, so it doesn't change on every refresh.
 
-All thresholds are in Settings and shared with the widgets through the App Group.
+All thresholds are in Settings and shared with the widgets through the App Group. The watch gets
+them over WatchConnectivity, because App Groups don't cross devices.
+
+### 👍/👎 tuning
+
+Under the Jacket Call: "Was this right?" A 👎 asks what went wrong (cold, too warm, got rained on,
+didn't need the rain jacket). Each answer moves the **one** threshold that would have changed the
+call, by half the gap to the value that would have flipped it, at least 1° and at most 4°.
+Rain answers move the rain-chance threshold 5 points. Wind-bumped days raise the windy threshold
+instead. One vote per day, and Undo puts things back. History is in Settings.
+
+### Radar
+
+The sentence on top (from WeatherKit's minute forecast) is the answer. The map is backup: a loop
+of the past hour in 5-minute frames from the **Iowa Environmental Mesonet** NEXRAD N0Q composite
+(public domain, US only, no key). Each tile is decoded back to dBZ using IEM's exact color ramp,
+then repainted as light / moderate / heavy using the same rain-rate bands as the next-hour summary
+(Marshall-Palmer), with drizzle and clutter under 15 dBZ hidden.
+
+RainViewer was ruled out. Since January 2026 its free tier caps zoom at 7 (too coarse for a metro
+view) and dropped nowcast. IEM has no nowcast either, which is why the minute summary carries the
+future.
+
+### Snark
+
+In the app, Apple's on-device model (Foundation Models, iOS 26 + Apple Intelligence) writes the
+line, with one template line as a style example. `SnarkPrompt.accept` throws the answer out if it
+refuses, gets wholesome ("stay safe"), rambles, or contradicts the verdict. Then the template line
+stays. Widgets and the watch always use templates. There's a toggle in Settings.
 
 ## Building
 
@@ -75,6 +108,6 @@ Build `main`, Archive (iOS), and deliver to the internal TestFlight group **"Me"
 
 ## Roadmap
 
-- **Phase 2:** minimal radar ("is rain coming at me?"), a fuller watch companion app, Foundation
-  Models snark with the templated fallback, 👍/👎 threshold tuning, and a weather alerts banner.
+- **Phase 2 (done in code, needs a device test):** minimal radar, watch companion app, Foundation
+  Models snark with the templated fallback, 👍/👎 threshold tuning, weather alerts banner.
 - **Later:** homelab push service ("rain in 15 min"), saved locations, Live Activities.

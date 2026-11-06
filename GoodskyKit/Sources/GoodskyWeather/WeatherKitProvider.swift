@@ -14,10 +14,13 @@ public struct WeatherKitProvider: WeatherProviding {
         let hourStart = Calendar.current.dateInterval(of: .hour, for: now)?.start ?? now
         let hourEnd = hourStart.addingTimeInterval(48 * 3600)
 
+        // Alerts go in their own request so an alerts hiccup can't take down the forecast.
+        async let alertsRequest = try? WeatherService.shared.weather(for: location, including: .alerts)
         let (current, hourly, daily, minute) = try await WeatherService.shared.weather(
             for: location,
             including: .current, .hourly(startDate: hourStart, endDate: hourEnd), .daily, .minute
         )
+        let alerts = await alertsRequest
 
         return WeatherSnapshot(
             fetchedAt: now,
@@ -66,6 +69,11 @@ public struct WeatherKitProvider: WeatherProviding {
                     intensityMmPerHour: m.precipitationIntensity.converted(to: .kilometersPerHour).value * 1_000_000,
                     precipKind: PrecipKind(m.precipitation)
                 )
+            },
+            // nil when the request failed or alerts aren't offered for this location.
+            alerts: alerts?.map { a in
+                WeatherAlertInfo(summary: a.summary, severity: AlertSeverity(a.severity),
+                                 source: a.source, region: a.region, detailsURL: a.detailsURL)
             }
         )
     }
@@ -81,6 +89,19 @@ extension PrecipKind {
         case .hail: self = .hail
         case .mixed: self = .mixed
         @unknown default: self = .rain
+        }
+    }
+}
+
+extension AlertSeverity {
+    init(_ s: WeatherSeverity) {
+        switch s {
+        case .minor: self = .minor
+        case .moderate: self = .moderate
+        case .severe: self = .severe
+        case .extreme: self = .extreme
+        case .unknown: self = .unknown
+        @unknown default: self = .unknown
         }
     }
 }

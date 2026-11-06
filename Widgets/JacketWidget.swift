@@ -124,8 +124,14 @@ struct JacketWidgetView: View {
                     Text(temp).font(.title2.bold())
                 }
                 VStack(alignment: .leading, spacing: 6) {
+                    if let banner = report.alertBanner {
+                        Label(banner.title, systemImage: banner.lead.severity.symbolName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
                     Text(call.reason).font(.caption).lineLimit(3)
-                    Text(report.snark).font(.caption.italic()).foregroundStyle(.secondary).lineLimit(3)
+                    Text(report.snark).font(.caption.italic()).foregroundStyle(.secondary).lineLimit(report.alertBanner == nil ? 3 : 2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

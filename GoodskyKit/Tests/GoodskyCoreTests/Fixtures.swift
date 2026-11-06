@@ -42,3 +42,14 @@ extension HourForecast {
         var wind: Double = 5
     }
 }
+
+extension Fixtures {
+    static func call(_ verdict: JacketVerdict, min: Double = 55, max: Double = 70, wet: Bool = false,
+                     chance: Double = 0, kind: PrecipKind = .none, wind: Double = 5,
+                     bumped: Bool = false) -> JacketCall {
+        JacketCall(verdict: verdict, reason: "Feels like \(Int(min))° at the coldest.",
+                   windowStart: date(hour: 7), windowEnd: date(hour: 19), minFeelsLikeF: min,
+                   maxFeelsLikeF: max, coldestHour: date(hour: 7), firstWetHour: wet ? date(hour: 15) : nil,
+                   peakPrecipChance: chance, precipKind: kind, maxWindMph: wind, windBumped: bumped)
+    }
+}

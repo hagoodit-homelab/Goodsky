@@ -30,3 +30,28 @@ import Testing
         #expect(r.temperatureF == 50)
     }
 }
+
+@Suite struct SharedStorePhase2Tests {
+    func freshStore() -> SharedStore {
+        SharedStore(defaults: UserDefaults(suiteName: "goodsky.tests.\(UUID().uuidString)"))
+    }
+
+    @Test func defaults() {
+        let store = freshStore()
+        #expect(store.aiSnarkEnabled)
+        #expect(store.feedbackLog.isEmpty)
+        #expect(store.settingsUpdatedAt == .distantPast)
+    }
+
+    @Test func feedbackLogIsCappedAndQueryableByDay() {
+        let store = freshStore()
+        let rec = { (day: String) in
+            FeedbackRecord(date: .now, day: day, verdict: .jacket, feedback: .tooCold, minFeelsLikeF: 50,
+                           peakPrecipChance: 0, before: .default, after: .default)
+        }
+        store.feedbackLog = (0..<(SharedStore.feedbackLimit + 10)).map { rec("d\($0)") }
+        #expect(store.feedbackLog.count == SharedStore.feedbackLimit)
+        #expect(store.feedback(forDay: "d\(SharedStore.feedbackLimit + 9)") != nil)
+        #expect(store.feedback(forDay: "d0") == nil)
+    }
+}

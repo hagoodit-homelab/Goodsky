@@ -1,9 +1,11 @@
 import GoodskyCore
 import SwiftUI
 
-/// The hero: verdict, why, and an insult.
+/// The hero: verdict, why, an insult, and a 👍/👎.
 struct JacketCallCard: View {
     let report: GoodskyReport
+    /// Model-written when available, template otherwise (see `WeatherModel.snark`).
+    let snark: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -17,12 +19,16 @@ struct JacketCallCard: View {
                 }
                 Text(call.reason)
                     .font(.headline)
-                Text(report.snark)
+                Text(snark)
                     .font(.body.italic())
                     .foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+                    .animation(.default, value: snark)
                 Text(windowLabel(call))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                Divider().padding(.vertical, 2)
+                FeedbackControls(call: call)
             } else {
                 Text("🤷 No call yet").font(.title.bold())
                 Text("The forecast is missing hours I need. Pull to refresh.").foregroundStyle(.secondary)
@@ -31,7 +37,6 @@ struct JacketCallCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(.regularMaterial, in: .rect(cornerRadius: 24))
-        .accessibilityElement(children: .combine)
     }
 
     private func windowLabel(_ call: JacketCall) -> String {
@@ -69,16 +74,27 @@ struct CurrentConditionsCard: View {
     }
 }
 
+/// Next-hour sentence. Taps through to the radar.
 struct NextHourCard: View {
     let summary: PrecipSummary
 
     var body: some View {
-        Label {
-            Text(summary.text).font(.callout)
-        } icon: {
-            Image(systemName: summary.intensity == nil ? "umbrella" : "cloud.rain.fill")
-                .symbolRenderingMode(.multicolor)
+        HStack(spacing: 8) {
+            Label {
+                Text(summary.text).font(.callout)
+            } icon: {
+                Image(systemName: summary.intensity == nil ? "umbrella" : "cloud.rain.fill")
+                    .symbolRenderingMode(.multicolor)
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: 2) {
+                Text("Radar")
+                Image(systemName: "chevron.right")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
         }
+        .contentShape(.rect)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(.regularMaterial, in: .rect(cornerRadius: 20))

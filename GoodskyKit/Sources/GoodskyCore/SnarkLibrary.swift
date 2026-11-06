@@ -2,8 +2,8 @@ import Foundation
 
 /// Hand-written one-liners, keyed by verdict and conditions. Cursing allowed; that's the point.
 ///
-/// This is the reliable source of snark. Widgets and the watch always use it. The on-device
-/// Foundation Models version (Phase 2) falls back to it when the model gets prudish.
+/// This is the reliable source of snark. Widgets and the watch always use it. The app's on-device
+/// Foundation Models line (see `SnarkPrompt`) falls back to it when the model gets prudish.
 public enum SnarkLibrary {
     /// Situations more specific than the verdict. Checked in this order; first match wins.
     public enum Mood: String, CaseIterable, Sendable {
@@ -30,9 +30,14 @@ public enum SnarkLibrary {
     public static func line(for call: JacketCall, on date: Date, calendar: Calendar, salt: Int = 0) -> String {
         let pool = lines(for: call)
         guard !pool.isEmpty else { return "" }
-        let day = calendar.dateComponents([.year, .month, .day], from: date)
-        let key = "\(day.year ?? 0)-\(day.month ?? 0)-\(day.day ?? 0)|\(call.verdict.rawValue)|\(mood(for: call)?.rawValue ?? "-")|\(salt)"
+        let key = cacheKey(for: call, on: date, calendar: calendar) + "|\(salt)"
         return pool[Int(fnv1a(key) % UInt64(pool.count))]
+    }
+
+    /// Identifies "today's situation". The line only changes when this does.
+    public static func cacheKey(for call: JacketCall, on date: Date, calendar: Calendar) -> String {
+        let day = calendar.dateComponents([.year, .month, .day], from: date)
+        return "\(day.year ?? 0)-\(day.month ?? 0)-\(day.day ?? 0)|\(call.verdict.rawValue)|\(mood(for: call)?.rawValue ?? "-")"
     }
 
     /// FNV-1a: deterministic across launches (unlike `Hasher`).
