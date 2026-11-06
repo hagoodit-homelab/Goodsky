@@ -41,7 +41,9 @@ import Testing
         let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
         #expect(call.verdict == .jacket)
         #expect(call.minFeelsLikeF == 50)
-        #expect(call.reason == "Feels like 50° at its coldest, around 7 AM.")
+        #expect(call.timing == .nowOnly(until: Fixtures.date(hour: 10)))
+        #expect(call.headline == "Jacket for now")
+        #expect(call.reason == "Wear it when you head out; you can ditch it by 10 AM. Feels like 50° at its coldest, around 7 AM.")
     }
 
     @Test func coldIsRealCoat() throws {
@@ -57,7 +59,9 @@ import Testing
         let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
         #expect(call.verdict == .rainJacket)
         #expect(call.firstWetHour == Fixtures.date(hour: 15))
-        #expect(call.reason == "Rain likely from 3 PM (70%). Feels like 50° at the coldest.")
+        #expect(call.timing == .stepUp(now: .jacket, at: Fixtures.date(hour: 15)))
+        #expect(call.headline == "Rain jacket")
+        #expect(call.reason == "Jacket when you head out, rain jacket by 3 PM. Rain likely from 3 PM (70%). Feels like 50° at the coldest.")
     }
 
     @Test func rainAlreadyFallingSaysWhenYouHeadOut() throws {
@@ -113,6 +117,86 @@ import Testing
         var s = JacketSettings.default
         s.jacketBelowF = 55
         #expect(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), settings: s, calendar: cal)?.verdict == .noJacket)
+    }
+
+    // MARK: Now vs later
+
+    @Test func steadyColdIsAllDay() throws {
+        let hourly = Fixtures.hours { _ in .init(feels: 50) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.timing == .allDay)
+        #expect(call.headline == "Jacket")
+        #expect(call.reason == "Feels like 50° at its coldest, around 7 AM.")
+    }
+
+    @Test func warmNowColdEveningIsJacketLater() throws {
+        let hourly = Fixtures.hours { h in .init(feels: h >= 17 ? 54 : 70) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 12), calendar: cal))
+        #expect(call.verdict == .jacket)
+        #expect(call.timing == .later(from: Fixtures.date(hour: 17)))
+        #expect(call.headline == "Jacket later")
+        #expect(call.shortHeadline == "Jacket later")
+        #expect(call.reason == "Fine without one now, but you'll want it by 5 PM. Feels like 54° at its coldest, around 5 PM.")
+    }
+
+    @Test func dryNowRainLaterDoesNotRepeatTheTime() throws {
+        let hourly = Fixtures.hours { h in
+            h >= 15 ? .init(feels: 70, chance: 0.7, amount: 0.05, kind: .rain) : .init(feels: 70)
+        }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 9), calendar: cal))
+        #expect(call.verdict == .rainJacket)
+        #expect(call.timing == .later(from: Fixtures.date(hour: 15)))
+        #expect(call.headline == "Rain jacket later")
+        #expect(call.reason == "Fine without one now, but bring it. Rain likely from 3 PM (70%). Feels like 70° at the coldest.")
+    }
+
+    @Test func coldLaterSaysTheCoat() throws {
+        let hourly = Fixtures.hours { h in .init(feels: h >= 16 ? 40 : 66) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.verdict == .realCoat)
+        #expect(call.timing == .later(from: Fixtures.date(hour: 16)))
+        #expect(call.reason.hasPrefix("Fine without one when you head out, but you'll want the coat by 4 PM."))
+    }
+
+    @Test func coldMorningAndEveningIsAllDay() throws {
+        // Cold at both ends: keep it with you even though midday is warm.
+        let hourly = Fixtures.hours { h in .init(feels: (h < 10 || h >= 17) ? 50 : 68) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.timing == .allDay)
+    }
+
+    @Test func needEndingNearWindowEndIsAllDay() throws {
+        // Only an hour of jacket-free time left: not worth a "ditch it" call.
+        let hourly = Fixtures.hours { h in .init(feels: h < 18 ? 50 : 66) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.timing == .allDay)
+    }
+
+    @Test func timingUsesFeelsLikeNotAirTemp() throws {
+        // Air temp is a mild 64° all day, but wind chill drags feels-like to 50° in the evening.
+        let hourly = (0..<36).map { i -> HourForecast in
+            let h = i % 24
+            return HourForecast(date: Fixtures.date(hour: 0).addingTimeInterval(TimeInterval(i) * 3600),
+                                temperatureF: 64, feelsLikeF: h >= 17 ? 50 : 64,
+                                precipChance: 0, precipAmountIn: 0, precipKind: .none, windMph: 5)
+        }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 12), calendar: cal))
+        #expect(call.verdict == .jacket)
+        #expect(call.timing == .later(from: Fixtures.date(hour: 17)))
+    }
+
+    @Test func lastHourOfWindowHasNoLater() throws {
+        let hourly = Fixtures.hours { h in .init(feels: h >= 18 ? 50 : 70) }
+        // 17:30: window is now → 19:00, entirely inside the "now" span.
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 17, minute: 30), calendar: cal))
+        #expect(call.timing == .allDay)
+    }
+
+    @Test func noJacketHasNoTimingSuffix() throws {
+        let hourly = Fixtures.hours { _ in .init(feels: 72) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.timing == .allDay)
+        #expect(call.headline == "No jacket")
     }
 
     @Test func emptyForecastIsNil() {

@@ -12,7 +12,7 @@ struct JacketCallCard: View {
             if let call = report.call {
                 HStack(alignment: .firstTextBaseline) {
                     Text(call.verdict.emoji).font(.system(size: 56))
-                    Text(call.verdict.title)
+                    Text(call.headline)
                         .font(.largeTitle.bold())
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)

@@ -21,6 +21,7 @@ public enum SnarkPrompt {
         var facts: [String] = [
             "Verdict: \(call.verdict.title.lowercased()).",
             "Why: \(call.reason)",
+            timingFact(call, calendar: calendar),
             "Feels like \(Format.degrees(call.minFeelsLikeF)) to \(Format.degrees(call.maxFeelsLikeF)) while out.",
         ]
         if let wet = call.firstWetHour {
@@ -33,6 +34,17 @@ public enum SnarkPrompt {
         Example of the voice (don't copy it): \(example)
         Write today's line.
         """
+    }
+
+    /// Now vs later, spelled out so the line doesn't yell "wear it" when he can skip it till evening.
+    static func timingFact(_ call: JacketCall, calendar: Calendar) -> String {
+        switch call.timing {
+        case .allDay: return call.verdict == .noJacket ? "No need all day." : "Needed the whole time."
+        case .later(let from): return "Not needed yet; needed from \(Format.hour(from, calendar: calendar))."
+        case .nowOnly(let until): return "Needed now; can ditch it by \(Format.hour(until, calendar: calendar))."
+        case .stepUp(let now, let at):
+            return "\(now.title) now, \(call.verdict.title.lowercased()) from \(Format.hour(at, calendar: calendar))."
+        }
     }
 
     public static let maxLength = 140
