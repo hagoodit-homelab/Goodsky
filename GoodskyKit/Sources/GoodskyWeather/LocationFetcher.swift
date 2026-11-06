@@ -17,7 +17,11 @@ public final class LocationFetcher: NSObject, CLLocationManagerDelegate {
     }
 
     public var isAuthorized: Bool {
-        manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways
+        // `.authorizedWhenInUse` doesn't exist on macOS, so check by exclusion (keeps `swift test` working on a Mac).
+        switch manager.authorizationStatus {
+        case .notDetermined, .denied, .restricted: false
+        default: true
+        }
     }
 
     /// Last location CoreLocation already knows, without waiting. Handy in widgets.
