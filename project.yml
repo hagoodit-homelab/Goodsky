@@ -1,0 +1,160 @@
+# XcodeGen spec. The .xcodeproj is generated, not committed:
+#   brew install xcodegen && xcodegen generate
+# Xcode Cloud runs the same command in ci_scripts/ci_post_clone.sh.
+name: Goodsky
+
+options:
+  bundleIdPrefix: com.hagoodit
+  createIntermediateGroups: true
+  developmentLanguage: en
+  deploymentTarget:
+    iOS: "26.0"
+    watchOS: "26.0"
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: 84NHJE75L9
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  GoodskyKit:
+    path: GoodskyKit
+
+targets:
+  # MARK: iPhone app
+  Goodsky:
+    type: application
+    platform: iOS
+    sources:
+      - App/iOS
+      - App/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hagoodit.goodsky
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Config/Goodsky-Info.plist
+      properties:
+        CFBundleDisplayName: Goodsky
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSLocationWhenInUseUsageDescription: Goodsky uses your location to decide whether you need a damn jacket.
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Config/Goodsky.entitlements
+      properties:
+        com.apple.developer.weatherkit: true
+        com.apple.security.application-groups: [group.com.hagoodit.goodsky]
+    dependencies:
+      - package: GoodskyKit
+        product: GoodskyCore
+      - package: GoodskyKit
+        product: GoodskyWeather
+      - target: GoodskyWidgets
+      - target: GoodskyWatch
+
+  # MARK: iPhone widgets (home + lock screen)
+  GoodskyWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hagoodit.goodsky.widgets
+    info:
+      path: Config/GoodskyWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: Goodsky
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSWidgetWantsLocation: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Config/GoodskyWidgets.entitlements
+      properties:
+        com.apple.developer.weatherkit: true
+        com.apple.security.application-groups: [group.com.hagoodit.goodsky]
+    dependencies:
+      - package: GoodskyKit
+        product: GoodskyCore
+      - package: GoodskyKit
+        product: GoodskyWeather
+
+  # MARK: Watch app (embedded in the iPhone app)
+  GoodskyWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Watch
+      - App/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hagoodit.goodsky.watchkitapp
+        PRODUCT_NAME: Goodsky
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Config/GoodskyWatch-Info.plist
+      properties:
+        CFBundleDisplayName: Goodsky
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.hagoodit.goodsky
+        NSLocationWhenInUseUsageDescription: Goodsky uses your location to decide whether you need a damn jacket.
+    entitlements:
+      path: Config/GoodskyWatch.entitlements
+      properties:
+        com.apple.developer.weatherkit: true
+        com.apple.security.application-groups: [group.com.hagoodit.goodsky]
+    dependencies:
+      - package: GoodskyKit
+        product: GoodskyCore
+      - package: GoodskyKit
+        product: GoodskyWeather
+      - target: GoodskyWatchWidgets
+
+  # MARK: Watch complications / Smart Stack
+  GoodskyWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - Widgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hagoodit.goodsky.watchkitapp.widgets
+    info:
+      path: Config/GoodskyWatchWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: Goodsky
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSWidgetWantsLocation: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Config/GoodskyWatchWidgets.entitlements
+      properties:
+        com.apple.developer.weatherkit: true
+        com.apple.security.application-groups: [group.com.hagoodit.goodsky]
+    dependencies:
+      - package: GoodskyKit
+        product: GoodskyCore
+      - package: GoodskyKit
+        product: GoodskyWeather
+
+schemes:
+  Goodsky:
+    build:
+      targets:
+        Goodsky: all
+    archive:
+      config: Release

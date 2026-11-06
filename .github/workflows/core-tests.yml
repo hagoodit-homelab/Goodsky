@@ -1,0 +1,17 @@
+name: Core tests
+
+on:
+  push:
+    paths: ["GoodskyKit/**", ".github/workflows/core-tests.yml"]
+  pull_request:
+    paths: ["GoodskyKit/**", ".github/workflows/core-tests.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: GoodskyKit
+        run: swift test
