@@ -29,6 +29,9 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
             ?? snapshot.current.symbolName
     }
 
+    /// Active alerts banner, if any.
+    public var alertBanner: AlertBanner? { AlertBanner(alerts: snapshot.alerts) }
+
     /// Today's high/low from the daily forecast, if present.
     public var todayHighLow: (high: Double, low: Double)? {
         let calendar = snapshot.calendar
@@ -51,6 +54,9 @@ public struct SharedStore: @unchecked Sendable {
         static let snapshot = "snapshot.v1"
         static let settings = "jacketSettings.v1"
         static let location = "lastLocation.v1"
+        static let settingsUpdatedAt = "jacketSettingsUpdatedAt.v1"
+        static let feedback = "feedbackLog.v1"
+        static let aiSnark = "aiSnarkEnabled.v1"
     }
 
     public struct Coordinate: Codable, Sendable, Equatable {
@@ -77,6 +83,31 @@ public struct SharedStore: @unchecked Sendable {
     public var lastLocation: Coordinate? {
         get { decode(Key.location) }
         nonmutating set { encode(newValue, Key.location) }
+    }
+
+    /// When `settings` last changed on this device. Used to sync phone ↔ watch (newest wins).
+    public var settingsUpdatedAt: Date {
+        get { decode(Key.settingsUpdatedAt) ?? .distantPast }
+        nonmutating set { encode(newValue, Key.settingsUpdatedAt) }
+    }
+
+    /// 👍/👎 history, newest last. Capped at `feedbackLimit`.
+    public var feedbackLog: [FeedbackRecord] {
+        get { decode(Key.feedback) ?? [] }
+        nonmutating set { encode(Array(newValue.suffix(Self.feedbackLimit)), Key.feedback) }
+    }
+
+    public static let feedbackLimit = 120
+
+    /// Use Apple's on-device model for the app's snark line (falls back to templates). Default on.
+    public var aiSnarkEnabled: Bool {
+        get { decode(Key.aiSnark) ?? true }
+        nonmutating set { encode(newValue, Key.aiSnark) }
+    }
+
+    /// The vote already cast for a day, if any.
+    public func feedback(forDay day: String) -> FeedbackRecord? {
+        feedbackLog.last(where: { $0.day == day })
     }
 
     private func decode<T: Decodable>(_ key: String) -> T? {
