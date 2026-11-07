@@ -53,10 +53,15 @@ public struct HourForecast: Codable, Sendable, Equatable {
     public var windMph: Double
     public var symbolName: String
     public var conditionText: String
+    /// 0...1. `nil` in snapshots cached before Goodsky's own feels-like existed.
+    public var humidity: Double?
+    /// 0...1. `nil` in older cached snapshots; the sun and clear-night adjustments are skipped then.
+    public var cloudCover: Double?
 
     public init(date: Date, temperatureF: Double, feelsLikeF: Double, precipChance: Double,
                 precipAmountIn: Double, precipKind: PrecipKind, windMph: Double,
-                symbolName: String = "cloud", conditionText: String = "") {
+                symbolName: String = "cloud", conditionText: String = "",
+                humidity: Double? = nil, cloudCover: Double? = nil) {
         self.date = date
         self.temperatureF = temperatureF
         self.feelsLikeF = feelsLikeF
@@ -66,6 +71,8 @@ public struct HourForecast: Codable, Sendable, Equatable {
         self.windMph = windMph
         self.symbolName = symbolName
         self.conditionText = conditionText
+        self.humidity = humidity
+        self.cloudCover = cloudCover
     }
 }
 

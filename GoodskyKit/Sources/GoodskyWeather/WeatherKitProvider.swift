@@ -47,7 +47,9 @@ public struct WeatherKitProvider: WeatherProviding {
                     precipKind: PrecipKind(h.precipitation),
                     windMph: h.wind.speed.converted(to: .milesPerHour).value,
                     symbolName: h.symbolName,
-                    conditionText: h.condition.description
+                    conditionText: h.condition.description,
+                    humidity: h.humidity,
+                    cloudCover: h.cloudCover
                 )
             },
             daily: daily.forecast.map { d in

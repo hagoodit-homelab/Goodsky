@@ -60,7 +60,7 @@ struct CurrentConditionsCard: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text("Feels \(Format.degrees(now.feelsLikeF))")
+                Text("Feels \(Format.degrees(report.feelsLikeF))")
                 if let hl = report.todayHighLow {
                     Text("H \(Format.degrees(hl.high))  L \(Format.degrees(hl.low))")
                 }

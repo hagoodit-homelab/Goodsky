@@ -26,7 +26,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Jacket call")
                 } footer: {
-                    Text("Uses the coldest feels-like temperature in your out-and-about window. Rain beats jacket.")
+                    Text("Uses the coldest feels-like temperature in your out-and-about window. Goodsky's feels-like counts sun, clear night skies, wind, damp air and whether it's cooling off, so a sunny 62° morning and a breezy 62° evening aren't treated the same. Rain beats jacket.")
                 }
 
                 Section("Out and about") {
