@@ -8,12 +8,17 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
     public var call: JacketCall?
     public var snark: String
     public var nextHour: PrecipSummary
+    /// The hourly forecast with `feelsLikeF` swapped for Goodsky's own feels-like (see `FeltTemperature`).
+    /// This is what the Jacket Call judges.
+    public var feltHourly: [HourForecast]
 
     public init(snapshot: WeatherSnapshot, settings: JacketSettings, at date: Date) {
         let calendar = snapshot.calendar
         self.date = date
         self.snapshot = snapshot
-        self.call = JacketAdvisor.call(hourly: snapshot.hourly, now: date, settings: settings, calendar: calendar)
+        self.feltHourly = FeltTemperature.adjusted(snapshot.hourly, latitude: snapshot.latitude,
+                                                   longitude: snapshot.longitude, calendar: calendar)
+        self.call = JacketAdvisor.call(hourly: feltHourly, now: date, settings: settings, calendar: calendar)
         self.snark = call.map { SnarkLibrary.line(for: $0, on: date, calendar: calendar) } ?? ""
         self.nextHour = PrecipSummarizer.summary(for: snapshot, now: date, calendar: calendar)
     }
@@ -22,6 +27,13 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
     public var temperatureF: Double {
         snapshot.hourly.last(where: { $0.date <= date && $0.date.addingTimeInterval(3600) > date })?.temperatureF
             ?? snapshot.current.temperatureF
+    }
+
+    /// Goodsky's feels-like right now: the hourly slot covering `date`, else WeatherKit's current value.
+    /// Matches the numbers the Jacket Call uses, so the card and the call never disagree.
+    public var feelsLikeF: Double {
+        feltHourly.last(where: { $0.date <= date && $0.date.addingTimeInterval(3600) > date })?.feelsLikeF
+            ?? snapshot.current.feelsLikeF
     }
 
     public var symbolName: String {

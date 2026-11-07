@@ -26,8 +26,14 @@ A personal iOS + Apple Watch weather app that answers one question fast:
 
 1. Pick the "out and about" window: 7am–7pm by default. During the day it runs from now until the
    window ends. Late in the evening it switches to the next 12 hours.
-2. Look at every forecast hour in that window, using **feels-like** temperature, wind, and
-   precipitation chance and amount.
+2. Look at every forecast hour in that window, using **Goodsky's feels-like** temperature, wind, and
+   precipitation chance and amount. WeatherKit's feels-like is basically wind chill below 50°F and
+   heat index above 80°F, and just the air temperature in between. So Goodsky builds its own
+   (`GoodskyCore/FeltTemperature.swift`) from the air temperature, adjusting for: sun on you (by sun
+   height and cloud cover, up to +8°), a clear sky after dark (−3°), wind in the 50–80° band
+   (−0.5° per mph over 3), damp air (−2°), the temperature falling (−2°) or rising (+1°), and being
+   out after dark in the evening (−2°). A sunny 62° morning comes out around 66°, and a clear,
+   breezy 62° evening around 51°. The current-conditions card shows the same number.
 3. Pick the verdict:
    - Any hour with ≥ 40% chance **and** ≥ 0.01″ expected → 🧥☔ **Rain jacket**. Rain beats
      jacket. Snow, sleet or mix on a cold day becomes ❄️ **Real coat** instead.
