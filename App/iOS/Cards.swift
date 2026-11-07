@@ -17,8 +17,26 @@ struct JacketCallCard: View {
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                 }
+                if call.later != nil {
+                    let cal = report.snapshot.calendar
+                    let phases = call.phases
+                    HStack(spacing: phases.count > 2 ? 4 : 10) {
+                        ForEach(Array(phases.enumerated()), id: \.offset) { i, phase in
+                            if i > 0 {
+                                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            PhasePanel(phase: phase,
+                                       title: i == 0 ? phase.label(at: report.date, calendar: cal)
+                                                     : "From \(Format.hour(phase.start, calendar: cal))",
+                                       calendar: cal, compact: phases.count > 2)
+                        }
+                    }
+                    if let plan = call.plan {
+                        Label(plan, systemImage: "bag").font(.headline)
+                    }
+                }
                 Text(call.reason)
-                    .font(.headline)
+                    .font(call.later == nil ? .headline : .subheadline)
                 if let breakdown = report.coldestBreakdown, let note = breakdown.note {
                     FeelsNoteButton(breakdown: breakdown, note: "\(Format.hour(breakdown.date, calendar: report.snapshot.calendar)) · \(note)",
                                     calendar: report.snapshot.calendar)
@@ -196,6 +214,41 @@ struct TemperatureBar: View {
             }
         }
         .frame(height: 6)
+    }
+}
+
+// MARK: - Now / later
+
+/// One half of the now/later split: "Now · 😎 No jacket · Feels 66°".
+struct PhasePanel: View {
+    let phase: JacketPhase
+    let title: String
+    let calendar: Calendar
+    /// Three-across layout: drop the word and keep the emoji big.
+    var compact = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+            Text(compact ? phase.verdict.shortTitle : "\(phase.verdict.emoji) \(phase.verdict.title)")
+                .font(compact ? .subheadline.weight(.semibold) : .headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            if compact { Text(phase.verdict.emoji).font(.title2) }
+            Text(compact ? "Feels \(Format.degrees(phase.minFeelsLikeF))" : detail)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(compact ? 8 : 10)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detail: String {
+        if let wet = phase.firstWetHour, wet > phase.start {
+            return "Feels \(Format.degrees(phase.minFeelsLikeF)) · wet from \(Format.hour(wet, calendar: calendar))"
+        }
+        return "Feels \(Format.degrees(phase.minFeelsLikeF))"
     }
 }
 

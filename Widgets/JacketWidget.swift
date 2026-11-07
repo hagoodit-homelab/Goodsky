@@ -130,6 +130,9 @@ struct JacketWidgetView: View {
                             .foregroundStyle(.orange)
                             .lineLimit(1)
                     }
+                    if let split = call.splitSummary(at: report.date, calendar: report.snapshot.calendar) {
+                        Text(split).font(.caption.weight(.semibold)).lineLimit(1)
+                    }
                     Text(call.reason).font(.caption).lineLimit(3)
                     Text(report.snark).font(.caption.italic()).foregroundStyle(.secondary).lineLimit(report.alertBanner == nil ? 3 : 2)
                 }

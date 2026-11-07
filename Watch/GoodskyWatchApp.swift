@@ -65,6 +65,12 @@ private struct CallPage: View {
                         Text(Format.degrees(report.temperatureF)).font(.title2.bold())
                     }
                     Text(call.headline).font(.headline)
+                    if let split = call.splitSummary(at: report.date, calendar: report.snapshot.calendar) {
+                        Text(split).font(.footnote.weight(.semibold))
+                    }
+                    if let plan = call.plan {
+                        Text(plan).font(.footnote.weight(.semibold))
+                    }
                     Text(call.reason).font(.footnote)
                     if let note = report.coldestBreakdown?.note {
                         Label(note, systemImage: "thermometer.medium")
