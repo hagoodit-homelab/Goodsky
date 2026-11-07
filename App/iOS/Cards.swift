@@ -19,6 +19,10 @@ struct JacketCallCard: View {
                 }
                 Text(call.reason)
                     .font(.headline)
+                if let breakdown = report.coldestBreakdown, let note = breakdown.note {
+                    FeelsNoteButton(breakdown: breakdown, note: "\(Format.hour(breakdown.date, calendar: report.snapshot.calendar)) · \(note)",
+                                    calendar: report.snapshot.calendar)
+                }
                 Text(snark)
                     .font(.body.italic())
                     .foregroundStyle(.secondary)
@@ -60,7 +64,11 @@ struct CurrentConditionsCard: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text("Feels \(Format.degrees(report.feelsLikeF))")
+                if let breakdown = report.feelsBreakdown {
+                    FeelsLikeButton(breakdown: breakdown, calendar: report.snapshot.calendar)
+                } else {
+                    Text("Feels \(Format.degrees(report.feelsLikeF))")
+                }
                 if let hl = report.todayHighLow {
                     Text("H \(Format.degrees(hl.high))  L \(Format.degrees(hl.low))")
                 }
@@ -188,5 +196,84 @@ struct TemperatureBar: View {
             }
         }
         .frame(height: 6)
+    }
+}
+
+// MARK: - Feels-like breakdown
+
+/// "5 PM · Feels 10° colder than the air: clear sky, wind, damp air". Tap for the full breakdown.
+struct FeelsNoteButton: View {
+    let breakdown: FeltTemperature.Breakdown
+    let note: String
+    let calendar: Calendar
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            Label(note, systemImage: "thermometer.medium")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows how Goodsky worked out the feels-like temperature")
+        .popover(isPresented: $showing) {
+            FeelsBreakdownView(breakdown: breakdown, calendar: calendar)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+/// "Feels 51° ⓘ" on the current-conditions card, with the air-vs-feels gap underneath.
+struct FeelsLikeButton: View {
+    let breakdown: FeltTemperature.Breakdown
+    let calendar: Calendar
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            HStack(spacing: 3) {
+                Text("Feels \(Format.degrees(breakdown.totalF))")
+                Image(systemName: "info.circle").imageScale(.small)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Shows how Goodsky worked out the feels-like temperature")
+        .popover(isPresented: $showing) {
+            FeelsBreakdownView(breakdown: breakdown, calendar: calendar)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+/// Air temperature, each adjustment, and the result, like a receipt.
+struct FeelsBreakdownView: View {
+    let breakdown: FeltTemperature.Breakdown
+    let calendar: Calendar
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Feels like at \(Format.hour(breakdown.date, calendar: calendar))").font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 6) {
+                row("Air temperature", Format.degrees(breakdown.airF))
+                ForEach(Array(breakdown.factors.enumerated()), id: \.offset) { _, f in
+                    row(f.label, Format.signedDegrees(f.deltaF))
+                        .foregroundStyle(f.deltaF < 0 ? .blue : .orange)
+                }
+                Divider().gridCellColumns(2)
+                row("Feels like", Format.degrees(breakdown.totalF)).bold()
+            }
+            .font(.subheadline)
+            .monospacedDigit()
+        }
+        .padding()
+        .frame(minWidth: 240)
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label)
+            Text(value).gridColumnAlignment(.trailing)
+        }
     }
 }

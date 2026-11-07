@@ -102,6 +102,41 @@ import Testing
         #expect(out[1].feelsLikeF == 58)
     }
 
+    // MARK: Explaining it
+
+    @Test func factorsAddUpAndLeadWithTheBiggest() {
+        let evening = felt(hour(19, temp: 62, wind: 8, humidity: 0.85), previous: hour(18, temp: 64.5))
+        #expect(evening.gapF == -11.5)
+        #expect(evening.factors.first?.label == "Clear night sky")
+        #expect(evening.factors.map(\.label).sorted()
+                == ["Clear night sky", "Cooling off", "Damp air", "End of the day", "Wind"])
+        #expect(abs(evening.factors.map(\.deltaF).reduce(0, +) - evening.gapF) < 0.01)
+    }
+
+    @Test func noteNamesTheTopThreeReasons() {
+        let evening = felt(hour(19, temp: 62, wind: 8, humidity: 0.85), previous: hour(18, temp: 64.5))
+        #expect(evening.note == "Feels 12° colder than the air: clear sky, wind, damp air")
+
+        let morning = felt(hour(10, temp: 62), previous: hour(9, temp: 60))
+        #expect(morning.note == "Feels 9° warmer than the air: sun, warming up")
+    }
+
+    @Test func noNoteWhenItFeelsLikeTheThermometer() {
+        // Overcast, calm, steady, mid-afternoon: within a couple of degrees of the air.
+        #expect(felt(hour(14, temp: 60, cloud: 1)).note == nil)
+    }
+
+    @Test func windChillShowsAsAFactorOutsideTheMildBand() {
+        let b = felt(hour(12, temp: 30, feels: 22, wind: 15, cloud: 1))
+        #expect(b.factors.first == .init(label: "Wind chill", deltaF: -8))
+    }
+
+    @Test func signedDegrees() {
+        #expect(Format.signedDegrees(4.2) == "+4°")
+        #expect(Format.signedDegrees(-2.5) == "−3°")
+        #expect(Format.signedDegrees(0.3) == "0°")
+    }
+
     // MARK: End to end
 
     @Test func same62AllDayBecomesJacketLater() throws {
@@ -129,5 +164,12 @@ import Testing
         #expect(call.timing == .later(from: Fixtures.date(hour: 17)))
         #expect(call.headline == "Jacket later")
         #expect(call.minFeelsLikeF == 52.5)
+
+        // The "why" behind the coldest hour, for the UI.
+        let why = try #require(r.coldestBreakdown)
+        #expect(why.date == Fixtures.date(hour: 17))
+        #expect(why.airF == 62)
+        #expect(why.note == "Feels 10° colder than the air: clear sky, wind, damp air")
+        #expect(r.feltBreakdowns.count == r.feltHourly.count)
     }
 }

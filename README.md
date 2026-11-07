@@ -34,6 +34,9 @@ A personal iOS + Apple Watch weather app that answers one question fast:
    (−0.5° per mph over 3), damp air (−2°), the temperature falling (−2°) or rising (+1°), and being
    out after dark in the evening (−2°). A sunny 62° morning comes out around 66°, and a clear,
    breezy 62° evening around 51°. The current-conditions card shows the same number.
+   The Jacket Call card adds a "why" line for the coldest hour ("5 PM · Feels 10° colder than the air:
+   clear sky, wind, damp air"), the watch shows it under the reason, and tapping either the line or
+   "Feels 51° ⓘ" opens the full breakdown: air temperature, each adjustment, and the result.
 3. Pick the verdict:
    - Any hour with ≥ 40% chance **and** ≥ 0.01″ expected → 🧥☔ **Rain jacket**. Rain beats
      jacket. Snow, sleet or mix on a cold day becomes ❄️ **Real coat** instead.

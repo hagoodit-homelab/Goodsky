@@ -11,11 +11,15 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
     /// The hourly forecast with `feelsLikeF` swapped for Goodsky's own feels-like (see `FeltTemperature`).
     /// This is what the Jacket Call judges.
     public var feltHourly: [HourForecast]
+    /// How each hour's feels-like was worked out, in the same order as `feltHourly`.
+    public var feltBreakdowns: [FeltTemperature.Breakdown]
 
     public init(snapshot: WeatherSnapshot, settings: JacketSettings, at date: Date) {
         let calendar = snapshot.calendar
         self.date = date
         self.snapshot = snapshot
+        self.feltBreakdowns = FeltTemperature.breakdowns(snapshot.hourly, latitude: snapshot.latitude,
+                                                         longitude: snapshot.longitude, calendar: calendar)
         self.feltHourly = FeltTemperature.adjusted(snapshot.hourly, latitude: snapshot.latitude,
                                                    longitude: snapshot.longitude, calendar: calendar)
         self.call = JacketAdvisor.call(hourly: feltHourly, now: date, settings: settings, calendar: calendar)
@@ -34,6 +38,17 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
     public var feelsLikeF: Double {
         feltHourly.last(where: { $0.date <= date && $0.date.addingTimeInterval(3600) > date })?.feelsLikeF
             ?? snapshot.current.feelsLikeF
+    }
+
+    /// How right-now's feels-like was worked out. `nil` when the forecast doesn't cover `date`.
+    public var feelsBreakdown: FeltTemperature.Breakdown? {
+        feltBreakdowns.last(where: { $0.date <= date && $0.date.addingTimeInterval(3600) > date })
+    }
+
+    /// How the Jacket Call's coldest hour got its number: the "why" behind "feels like 52° at its coldest".
+    public var coldestBreakdown: FeltTemperature.Breakdown? {
+        guard let call else { return nil }
+        return feltBreakdowns.first(where: { $0.date == call.coldestHour })
     }
 
     public var symbolName: String {
