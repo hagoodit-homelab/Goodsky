@@ -106,11 +106,22 @@ public struct JacketCall: Codable, Sendable, Equatable {
     public var now: JacketPhase? = nil
     /// The stretch after the need changes. `nil` when it's the same all day.
     public var later: JacketPhase? = nil
+    /// A jacket-free break between `now` and `later` on a cold–warm–cold day ("stash it 11 AM–4 PM").
+    /// `nil` otherwise.
+    public var midday: JacketPhase? = nil
+
+    /// The phases in order: now, the midday break if any, later.
+    public var phases: [JacketPhase] { [now, midday, later].compactMap { $0 } }
 
     /// What to do on the way out, when now and later differ. The phases carry the times; this is the action:
     /// "Bring a jacket for later." / "Wear a jacket out, then stash it." / "Wear a jacket, and bring a rain jacket for later."
     public var plan: String? {
         guard let now, let later else { return nil }
+        if midday != nil {
+            return later.verdict == now.verdict
+                ? "Wear \(now.verdict.withArticle) out, stash it midday, and keep it with you for later."
+                : "Wear \(now.verdict.withArticle) out, stash it midday, and bring \(later.verdict.withArticle) for later."
+        }
         switch timing {
         case .allDay:
             return nil
@@ -125,8 +136,9 @@ public struct JacketCall: Codable, Sendable, Equatable {
 
     /// One-line now/later for tight spots: "😎 Now · 🧥 5 PM". `nil` when it's the same all day.
     public func splitSummary(at date: Date, calendar: Calendar) -> String? {
-        guard let now, let later else { return nil }
-        return "\(now.verdict.emoji) \(now.label(at: date, calendar: calendar)) · \(later.verdict.emoji) \(Format.hour(later.start, calendar: calendar))"
+        guard let now, later != nil else { return nil }
+        let rest = phases.dropFirst().map { "\($0.verdict.emoji) \(Format.hour($0.start, calendar: calendar))" }
+        return (["\(now.verdict.emoji) \(now.label(at: date, calendar: calendar))"] + rest).joined(separator: " · ")
     }
 
     /// Headline for the hero spot: "Jacket", "Jacket later", "Jacket for now".
@@ -186,8 +198,7 @@ public enum JacketAdvisor {
                                 firstWet: all.firstWet, wetKind: all.wetKind, maxWind: all.maxWind,
                                 windBumped: all.windBumped, settings: s, calendar: calendar)
 
-        let (nowPhase, laterPhase) = phases(hours: hours, overall: all.verdict, timing: timing,
-                                            window: window, settings: s)
+        let split = phases(hours: hours, overall: all.verdict, timing: timing, window: window, settings: s)
 
         return JacketCall(verdict: all.verdict, timing: timing, reason: reason,
                           windowStart: window.start, windowEnd: window.end,
@@ -195,30 +206,66 @@ public enum JacketAdvisor {
                           coldestHour: all.coldest.date, firstWetHour: all.firstWet?.date,
                           peakPrecipChance: all.peakChance, precipKind: all.wetKind,
                           maxWindMph: all.maxWind, windBumped: all.windBumped,
-                          now: nowPhase, later: laterPhase)
+                          now: split.now, later: split.later, midday: split.midday)
     }
 
     // MARK: - Phases
 
-    /// Splits the window at the timing's change point into "now" and "later".
+    /// A midday break needs at least this long jacket-free to be worth mentioning.
+    static let minBreak: TimeInterval = 2 * 3600
+
+    /// Splits the window at the timing's change point into "now" and "later". On a cold–warm–cold day
+    /// (timing `.allDay` or `.stepUp`, with a jacket-free stretch in the middle) it also returns the `midday` break.
     static func phases(hours: [HourForecast], overall: JacketVerdict, timing: JacketTiming,
-                       window: DateInterval, settings s: JacketSettings) -> (JacketPhase?, JacketPhase?) {
-        func phase(_ verdict: JacketVerdict, _ start: Date, _ end: Date) -> JacketPhase? {
-            let slice = hours.filter { $0.date < end && $0.date.addingTimeInterval(3600) > start }
-            guard let a = assess(slice, settings: s) else { return nil }
-            return JacketPhase(verdict: verdict, start: start, end: end,
+                       window: DateInterval, settings s: JacketSettings)
+        -> (now: JacketPhase?, later: JacketPhase?, midday: JacketPhase?) {
+        func slice(_ start: Date, _ end: Date) -> [HourForecast] {
+            hours.filter { $0.date < end && $0.date.addingTimeInterval(3600) > start }
+        }
+        func phase(_ verdict: JacketVerdict?, _ start: Date, _ end: Date) -> JacketPhase? {
+            guard let a = assess(slice(start, end), settings: s) else { return nil }
+            return JacketPhase(verdict: verdict ?? a.verdict, start: start, end: end,
                                minFeelsLikeF: a.coldest.feelsLikeF, firstWetHour: a.firstWet?.date)
         }
         switch timing {
         case .allDay:
-            return (phase(overall, window.start, window.end), nil)
+            if overall != .noJacket, let gap = middayBreak(hours: hours, window: window, settings: s) {
+                return (phase(nil, window.start, gap.start), phase(nil, gap.end, window.end),
+                        phase(.noJacket, gap.start, gap.end))
+            }
+            return (phase(overall, window.start, window.end), nil, nil)
         case .later(let from):
-            return (phase(.noJacket, window.start, from), phase(overall, from, window.end))
+            return (phase(.noJacket, window.start, from), phase(overall, from, window.end), nil)
         case .nowOnly(let until):
-            return (phase(overall, window.start, until), phase(.noJacket, until, window.end))
+            return (phase(overall, window.start, until), phase(.noJacket, until, window.end), nil)
         case .stepUp(let nowVerdict, let at):
-            return (phase(nowVerdict, window.start, at), phase(overall, at, window.end))
+            // Jacket now, coat tonight, with a warm stretch between: show the break too.
+            if let gap = middayBreak(hours: hours, window: window, settings: s), gap.end <= at {
+                return (phase(nowVerdict, window.start, gap.start), phase(nil, gap.end, window.end),
+                        phase(.noJacket, gap.start, gap.end))
+            }
+            return (phase(nowVerdict, window.start, at), phase(overall, at, window.end), nil)
         }
+    }
+
+    /// The longest run of jacket-free hours with a need on both sides, if it's at least `minBreak` long.
+    static func middayBreak(hours: [HourForecast], window: DateInterval, settings s: JacketSettings) -> DateInterval? {
+        let need = hours.map { verdict(for: $0, settings: s) != .noJacket }
+        guard let firstNeed = need.firstIndex(of: true), let lastNeed = need.lastIndex(of: true),
+              firstNeed < lastNeed else { return nil }
+        var best: Range<Int>?
+        var i = firstNeed
+        while i < lastNeed {
+            if need[i] { i += 1; continue }
+            var j = i
+            while j < lastNeed && !need[j] { j += 1 }
+            if (j - i) > (best?.count ?? 0) { best = i..<j }
+            i = j
+        }
+        guard let run = best else { return nil }
+        let start = max(hours[run.lowerBound].date, window.start)
+        let end = hours[run.upperBound].date
+        return end.timeIntervalSince(start) >= minBreak ? DateInterval(start: start, end: end) : nil
     }
 
     // MARK: - Verdict

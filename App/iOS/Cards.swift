@@ -17,13 +17,19 @@ struct JacketCallCard: View {
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                 }
-                if let now = call.now, let later = call.later {
-                    HStack(spacing: 10) {
-                        PhasePanel(phase: now, title: now.label(at: report.date, calendar: report.snapshot.calendar),
-                                   calendar: report.snapshot.calendar)
-                        Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                        PhasePanel(phase: later, title: "From \(Format.hour(later.start, calendar: report.snapshot.calendar))",
-                                   calendar: report.snapshot.calendar)
+                if call.later != nil {
+                    let cal = report.snapshot.calendar
+                    let phases = call.phases
+                    HStack(spacing: phases.count > 2 ? 4 : 10) {
+                        ForEach(Array(phases.enumerated()), id: \.offset) { i, phase in
+                            if i > 0 {
+                                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            PhasePanel(phase: phase,
+                                       title: i == 0 ? phase.label(at: report.date, calendar: cal)
+                                                     : "From \(Format.hour(phase.start, calendar: cal))",
+                                       calendar: cal, compact: phases.count > 2)
+                        }
                     }
                     if let plan = call.plan {
                         Label(plan, systemImage: "bag").font(.headline)
@@ -218,18 +224,22 @@ struct PhasePanel: View {
     let phase: JacketPhase
     let title: String
     let calendar: Calendar
+    /// Three-across layout: drop the word and keep the emoji big.
+    var compact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
-            Text("\(phase.verdict.emoji) \(phase.verdict.title)")
-                .font(.headline)
+            Text(compact ? phase.verdict.shortTitle : "\(phase.verdict.emoji) \(phase.verdict.title)")
+                .font(compact ? .subheadline.weight(.semibold) : .headline)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(detail).font(.caption).foregroundStyle(.secondary)
+            if compact { Text(phase.verdict.emoji).font(.title2) }
+            Text(compact ? "Feels \(Format.degrees(phase.minFeelsLikeF))" : detail)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(compact ? 8 : 10)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }

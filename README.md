@@ -55,7 +55,9 @@ A personal iOS + Apple Watch weather app that answers one question fast:
    iPhone hero shows them side by side (**Now · 😎 No jacket · Feels 66°** → **From 5 PM · 🧥 Jacket ·
    Feels 52°**) with the action for the way out: "Bring a jacket for later.", "Wear a jacket out, then
    stash it.", or "Wear a jacket, and bring a rain jacket for later." The watch and the medium widget
-   get a one-liner: "😎 Now · 🧥 5 PM".
+   get a one-liner: "😎 Now · 🧥 5 PM". On a cold–warm–cold day (jacket at both ends, 2+ warm hours
+   between) a third, midday phase appears: "🧥 7 AM · 😎 11 AM · 🧥 4 PM" and "Wear a jacket out, stash it
+   midday, and keep it with you for later."
 5. Add one reason line and one snark line. The snark line is picked deterministically per day and
    situation, so it doesn't change on every refresh.
 

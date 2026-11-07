@@ -70,6 +70,52 @@ import Testing
         #expect(call.plan == "Bring a real coat for later.")
     }
 
+    // MARK: Cold–warm–cold
+
+    @Test func coldBothEndsWithAWarmMiddleGetsAMiddayBreak() throws {
+        // Like a fall day: chilly at 7, warm late morning to mid-afternoon, cold again by 4.
+        let hourly = Fixtures.hours { h in .init(feels: h < 11 ? 50 : h < 16 ? 66 : 45) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.timing == .allDay)
+        #expect(call.headline == "Jacket")
+        #expect(call.now == JacketPhase(verdict: .jacket, start: Fixtures.date(hour: 7), end: Fixtures.date(hour: 11),
+                                        minFeelsLikeF: 50))
+        #expect(call.midday == JacketPhase(verdict: .noJacket, start: Fixtures.date(hour: 11), end: Fixtures.date(hour: 16),
+                                           minFeelsLikeF: 66))
+        #expect(call.later == JacketPhase(verdict: .jacket, start: Fixtures.date(hour: 16), end: Fixtures.date(hour: 19),
+                                          minFeelsLikeF: 45))
+        #expect(call.phases.count == 3)
+        #expect(call.plan == "Wear a jacket out, stash it midday, and keep it with you for later.")
+        #expect(call.splitSummary(at: Fixtures.date(hour: 6), calendar: cal) == "🧥 7 AM · 😎 11 AM · 🧥 4 PM")
+    }
+
+    @Test func colderLaterSaysTheCoat() throws {
+        let hourly = Fixtures.hours { h in .init(feels: h < 11 ? 50 : h < 16 ? 66 : 40) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.verdict == .realCoat)
+        #expect(call.now?.verdict == .jacket)
+        #expect(call.midday?.verdict == .noJacket)
+        #expect(call.later?.verdict == .realCoat)
+        #expect(call.plan == "Wear a jacket out, stash it midday, and bring a real coat for later.")
+    }
+
+    @Test func aOneHourWarmSpellIsNotABreak() throws {
+        let hourly = Fixtures.hours { h in .init(feels: h == 13 ? 66 : 50) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 6), calendar: cal))
+        #expect(call.midday == nil)
+        #expect(call.later == nil)
+        #expect(call.plan == nil)
+    }
+
+    @Test func breakStartingNowStillHasANeedOnBothSides() throws {
+        // Already warm at 10 AM with the cold coming at 4: that's "later", not a midday break.
+        let hourly = Fixtures.hours { h in .init(feels: h < 16 ? 66 : 45) }
+        let call = try #require(JacketAdvisor.call(hourly: hourly, now: Fixtures.date(hour: 10), calendar: cal))
+        #expect(call.timing == .later(from: Fixtures.date(hour: 16)))
+        #expect(call.midday == nil)
+        #expect(call.phases.count == 2)
+    }
+
     @Test func oldCachedCallsWithoutPhasesStillDecode() throws {
         // Calls encoded before phases existed have no "now"/"later" keys.
         var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(Fixtures.call(.jacket))) as! [String: Any]
