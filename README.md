@@ -51,6 +51,11 @@ A personal iOS + Apple Watch weather app that answers one question fast:
    - **For now**: needed now, then it warms up or dries out with at least 2 hours to spare →
      "Jacket for now" ("Wear it now; you can ditch it by 11 AM.").
    - **Step up**: one thing now, something heavier later ("Jacket now, rain jacket by 3 PM.").
+   When now and later differ, the call is split into two phases (`JacketCall.now` / `.later`). The
+   iPhone hero shows them side by side (**Now · 😎 No jacket · Feels 66°** → **From 5 PM · 🧥 Jacket ·
+   Feels 52°**) with the action for the way out: "Bring a jacket for later.", "Wear a jacket out, then
+   stash it.", or "Wear a jacket, and bring a rain jacket for later." The watch and the medium widget
+   get a one-liner: "😎 Now · 🧥 5 PM".
 5. Add one reason line and one snark line. The snark line is picked deterministically per day and
    situation, so it doesn't change on every refresh.
 

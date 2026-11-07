@@ -17,8 +17,20 @@ struct JacketCallCard: View {
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                 }
+                if let now = call.now, let later = call.later {
+                    HStack(spacing: 10) {
+                        PhasePanel(phase: now, title: now.label(at: report.date, calendar: report.snapshot.calendar),
+                                   calendar: report.snapshot.calendar)
+                        Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                        PhasePanel(phase: later, title: "From \(Format.hour(later.start, calendar: report.snapshot.calendar))",
+                                   calendar: report.snapshot.calendar)
+                    }
+                    if let plan = call.plan {
+                        Label(plan, systemImage: "bag").font(.headline)
+                    }
+                }
                 Text(call.reason)
-                    .font(.headline)
+                    .font(call.later == nil ? .headline : .subheadline)
                 if let breakdown = report.coldestBreakdown, let note = breakdown.note {
                     FeelsNoteButton(breakdown: breakdown, note: "\(Format.hour(breakdown.date, calendar: report.snapshot.calendar)) · \(note)",
                                     calendar: report.snapshot.calendar)
@@ -196,6 +208,37 @@ struct TemperatureBar: View {
             }
         }
         .frame(height: 6)
+    }
+}
+
+// MARK: - Now / later
+
+/// One half of the now/later split: "Now · 😎 No jacket · Feels 66°".
+struct PhasePanel: View {
+    let phase: JacketPhase
+    let title: String
+    let calendar: Calendar
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+            Text("\(phase.verdict.emoji) \(phase.verdict.title)")
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detail: String {
+        if let wet = phase.firstWetHour, wet > phase.start {
+            return "Feels \(Format.degrees(phase.minFeelsLikeF)) · wet from \(Format.hour(wet, calendar: calendar))"
+        }
+        return "Feels \(Format.degrees(phase.minFeelsLikeF))"
     }
 }
 
