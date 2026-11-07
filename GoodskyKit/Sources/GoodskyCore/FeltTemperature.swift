@@ -23,7 +23,11 @@ public enum FeltTemperature {
     /// The mild band where we build feels-like from air temperature ourselves.
     static let mildBand: ClosedRange<Double> = 50...80
 
-    public struct Breakdown: Sendable, Equatable {
+    public struct Breakdown: Codable, Sendable, Equatable {
+        /// Start of the hour this is for.
+        public var date: Date
+        /// The forecast air temperature.
+        public var airF: Double
         /// What we started from: air temperature in the mild band, WeatherKit's feels-like outside it.
         public var baseF: Double
         public var sun: Double = 0
@@ -34,6 +38,44 @@ public enum FeltTemperature {
         public var evening: Double = 0
 
         public var totalF: Double { baseF + sun + clearNight + wind + damp + trend + evening }
+
+        /// Feels-like minus air temperature. Negative means it feels colder than the thermometer says.
+        public var gapF: Double { totalF - airF }
+
+        /// One named piece of the gap between air temperature and feels-like.
+        public struct Factor: Sendable, Equatable {
+            public var label: String
+            public var deltaF: Double
+        }
+
+        /// The pieces that move the number by at least half a degree, biggest first. They add up to `gapF`
+        /// (give or take the dropped crumbs).
+        public var factors: [Factor] {
+            let all: [Factor] = [
+                Factor(label: baseF < airF ? "Wind chill" : "Heat index", deltaF: baseF - airF),
+                Factor(label: "Sun", deltaF: sun),
+                Factor(label: "Clear night sky", deltaF: clearNight),
+                Factor(label: "Wind", deltaF: wind),
+                Factor(label: "Damp air", deltaF: damp),
+                Factor(label: trend < 0 ? "Cooling off" : "Warming up", deltaF: trend),
+                Factor(label: "End of the day", deltaF: evening),
+            ]
+            return all.filter { abs($0.deltaF) >= 0.5 }.sorted { abs($0.deltaF) > abs($1.deltaF) }
+        }
+
+        /// Short "why" for tight spots, or `nil` when feels-like is within a couple of degrees of the air:
+        /// "Feels 11° colder than the air: clear sky, wind, damp air"
+        public var note: String? {
+            let gap = Int(gapF.rounded())
+            guard abs(gap) >= 2 else { return nil }
+            let colder = gap < 0
+            let reasons = factors
+                .filter { ($0.deltaF < 0) == colder }
+                .prefix(3)
+                .map { $0.label == "Clear night sky" ? "clear sky" : $0.label.lowercased() }
+            let head = "Feels \(abs(gap))° \(colder ? "colder" : "warmer") than the air"
+            return reasons.isEmpty ? head : "\(head): \(reasons.joined(separator: ", "))"
+        }
     }
 
     /// Copies of `hourly` with `feelsLikeF` replaced by Goodsky's feels-like.
@@ -41,19 +83,28 @@ public enum FeltTemperature {
     public static func adjusted(_ hourly: [HourForecast], latitude: Double, longitude: Double,
                                 calendar: Calendar) -> [HourForecast] {
         let sorted = hourly.sorted { $0.date < $1.date }
+        return zip(sorted, breakdowns(sorted, latitude: latitude, longitude: longitude, calendar: calendar))
+            .map { h, b in
+                var h = h
+                h.feelsLikeF = b.totalF
+                return h
+            }
+    }
+
+    /// The breakdown for every hour, in date order.
+    public static func breakdowns(_ hourly: [HourForecast], latitude: Double, longitude: Double,
+                                  calendar: Calendar) -> [Breakdown] {
+        let sorted = hourly.sorted { $0.date < $1.date }
         return sorted.indices.map { i in
-            var h = sorted[i]
             let prev = i > 0 && sorted[i].date.timeIntervalSince(sorted[i - 1].date) <= 3600 ? sorted[i - 1] : nil
-            h.feelsLikeF = breakdown(h, previous: prev, latitude: latitude, longitude: longitude,
-                                     calendar: calendar).totalF
-            return h
+            return breakdown(sorted[i], previous: prev, latitude: latitude, longitude: longitude, calendar: calendar)
         }
     }
 
     public static func breakdown(_ h: HourForecast, previous: HourForecast?, latitude: Double,
                                  longitude: Double, calendar: Calendar) -> Breakdown {
         let mild = mildBand.contains(h.temperatureF)
-        var b = Breakdown(baseF: mild ? h.temperatureF : h.feelsLikeF)
+        var b = Breakdown(date: h.date, airF: h.temperatureF, baseF: mild ? h.temperatureF : h.feelsLikeF)
 
         // Judge the sun at the middle of the hour.
         let sinElev = SolarPosition.sinElevation(at: h.date.addingTimeInterval(1800),

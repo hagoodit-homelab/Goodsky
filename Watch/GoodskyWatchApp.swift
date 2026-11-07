@@ -66,6 +66,11 @@ private struct CallPage: View {
                     }
                     Text(call.headline).font(.headline)
                     Text(call.reason).font(.footnote)
+                    if let note = report.coldestBreakdown?.note {
+                        Label(note, systemImage: "thermometer.medium")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     Text(model.snark).font(.footnote.italic()).foregroundStyle(.secondary)
                     FeedbackControls(call: call).padding(.top, 4)
                 } else {

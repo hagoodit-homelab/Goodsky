@@ -4,6 +4,12 @@ import Foundation
 public enum Format {
     public static func degrees(_ f: Double) -> String { "\(Int(f.rounded()))°" }
 
+    /// "+4°", "−3°", "0°" (true minus sign).
+    public static func signedDegrees(_ f: Double) -> String {
+        let n = Int(f.rounded())
+        return n > 0 ? "+\(n)°" : n < 0 ? "−\(-n)°" : "0°"
+    }
+
     public static func percent(_ p: Double) -> String { "\(Int((p * 100).rounded()))%" }
 
     public static func mph(_ v: Double) -> String { "\(Int(v.rounded())) mph" }
