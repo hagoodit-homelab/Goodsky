@@ -28,7 +28,8 @@ struct JacketCallCard: View {
                             PhasePanel(phase: phase,
                                        title: i == 0 ? phase.label(at: report.date, calendar: cal)
                                                      : "From \(Format.hour(phase.start, calendar: cal))",
-                                       calendar: cal, compact: phases.count > 2)
+                                       calendar: cal, compact: phases.count > 2,
+                                       breakdown: report.coldestBreakdown(in: phase))
                         }
                     }
                     if let plan = call.plan {
@@ -219,15 +220,32 @@ struct TemperatureBar: View {
 
 // MARK: - Now / later
 
-/// One half of the now/later split: "Now · 😎 No jacket · Feels 66°".
+/// One half of the now/later split: "Now · 😎 No jacket · Feels 66°". Tap for how that feels-like was worked out.
 struct PhasePanel: View {
     let phase: JacketPhase
     let title: String
     let calendar: Calendar
     /// Three-across layout: drop the word and keep the emoji big.
     var compact = false
+    /// The coldest hour in this stretch. `nil` hides the ⓘ and makes the panel plain.
+    var breakdown: FeltTemperature.Breakdown? = nil
+    @State private var showing = false
 
     var body: some View {
+        if let breakdown {
+            Button { showing = true } label: { panel }
+                .buttonStyle(.plain)
+                .accessibilityHint("Shows how Goodsky worked out the feels-like temperature")
+                .popover(isPresented: $showing) {
+                    FeelsBreakdownView(breakdown: breakdown, calendar: calendar)
+                        .presentationCompactAdaptation(.popover)
+                }
+        } else {
+            panel
+        }
+    }
+
+    private var panel: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
             Text(compact ? phase.verdict.shortTitle : "\(phase.verdict.emoji) \(phase.verdict.title)")
@@ -235,12 +253,19 @@ struct PhasePanel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             if compact { Text(phase.verdict.emoji).font(.title2) }
-            Text(compact ? "Feels \(Format.degrees(phase.minFeelsLikeF))" : detail)
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+            HStack(spacing: 3) {
+                Text(compact ? "Feels \(Format.degrees(phase.minFeelsLikeF))" : detail)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                if breakdown != nil {
+                    Image(systemName: "info.circle").imageScale(.small)
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(compact ? 8 : 10)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        .contentShape(.rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }
 

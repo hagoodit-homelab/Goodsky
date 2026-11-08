@@ -189,5 +189,14 @@ import Testing
         #expect(why.airF == 62)
         #expect(why.note == "Feels 10° colder than the air: clear sky, wind, damp air")
         #expect(r.feltBreakdowns.count == r.feltHourly.count)
+
+        // Each now/later panel explains its own coldest hour, and the receipt matches the panel's number.
+        let first = try #require(call.now), later = try #require(call.later)
+        let nowWhy = try #require(r.coldestBreakdown(in: first))
+        #expect(nowWhy.totalF == first.minFeelsLikeF)
+        #expect(nowWhy.date >= first.start && nowWhy.date < first.end)
+        let laterWhy = try #require(r.coldestBreakdown(in: later))
+        #expect(laterWhy.totalF == later.minFeelsLikeF)
+        #expect(laterWhy == why)
     }
 }
