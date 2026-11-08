@@ -8,7 +8,7 @@ import Foundation
 ///
 /// | Factor | Adjustment |
 /// |---|---|
-/// | Sun on you, scaled by sun height and cloud cover | up to +8° |
+/// | Sun on you, scaled by sun height and cloud cover | up to +8° (less in the cold, see below) |
 /// | Sun down, clear sky (body radiates heat to the sky) | up to −3° |
 /// | Wind (50–80°F only; WeatherKit covers it outside that band) | −0.5° per mph over 3, max −8° |
 /// | Damp air (humidity ≥ 80%, below 65°F, 50–80°F band) | −2° |
@@ -16,19 +16,43 @@ import Foundation
 /// | Temperature rising ≥ 1° in the hour | +1° |
 /// | Evening after dark (5 PM–midnight): you've been out all day | −2° |
 ///
+/// Below the mild band we start from WeatherKit's feels-like for wind chill, but never from anything warmer
+/// than the air: Apple's number can already include some sun, and adding ours on top counted it twice
+/// (a 44° clear morning came out "feels 56°"). The sun also helps less in the cold: its bonus shrinks from
+/// +8° at 50° air to +4° at 40° and below, since you're bundled up and the air pulls the heat back off you.
+///
 /// The numbers are starting estimates, loosely based on Steadman's apparent temperature. The 👍/👎
 /// tuner moves the jacket thresholds if they run warm or cold for you.
 /// Pure and deterministic: the same forecast always gives the same number.
 public enum FeltTemperature {
     /// The mild band where we build feels-like from air temperature ourselves.
     static let mildBand: ClosedRange<Double> = 50...80
+    /// Most the sun can add, in full sun at 50°F air and up.
+    static let maxSunF: Double = 8
+    /// Most the sun can add at 40°F air and below.
+    static let maxColdSunF: Double = 4
+
+    /// The sun's cap at this air temperature: 8° at 50° and up, sliding to 4° at 40° and below.
+    static func sunCap(airF: Double) -> Double {
+        let t = min(max((airF - 40) / 10, 0), 1)
+        return maxColdSunF + (maxSunF - maxColdSunF) * t
+    }
+
+    /// Where we start from. Mild: the air. Cold: WeatherKit's wind chill, never warmer than the air
+    /// (we add the sun ourselves). Hot: WeatherKit's heat index.
+    static func base(_ h: HourForecast) -> Double {
+        if mildBand.contains(h.temperatureF) { return h.temperatureF }
+        if h.temperatureF < mildBand.lowerBound { return min(h.feelsLikeF, h.temperatureF) }
+        return h.feelsLikeF
+    }
 
     public struct Breakdown: Codable, Sendable, Equatable {
         /// Start of the hour this is for.
         public var date: Date
         /// The forecast air temperature.
         public var airF: Double
-        /// What we started from: air temperature in the mild band, WeatherKit's feels-like outside it.
+        /// What we started from: air temperature in the mild band, WeatherKit's wind chill (never above the air)
+        /// below it, WeatherKit's heat index above it.
         public var baseF: Double
         public var sun: Double = 0
         public var clearNight: Double = 0
@@ -104,7 +128,7 @@ public enum FeltTemperature {
     public static func breakdown(_ h: HourForecast, previous: HourForecast?, latitude: Double,
                                  longitude: Double, calendar: Calendar) -> Breakdown {
         let mild = mildBand.contains(h.temperatureF)
-        var b = Breakdown(date: h.date, airF: h.temperatureF, baseF: mild ? h.temperatureF : h.feelsLikeF)
+        var b = Breakdown(date: h.date, airF: h.temperatureF, baseF: base(h))
 
         // Judge the sun at the middle of the hour.
         let sinElev = SolarPosition.sinElevation(at: h.date.addingTimeInterval(1800),
@@ -117,7 +141,7 @@ public enum FeltTemperature {
                 // Kasten–Czeplak: how much sunlight gets through the clouds.
                 let clear = 1 - 0.75 * pow(cloud, 3.4)
                 // Sun ~30° up (sin 0.5) or higher counts as full strength.
-                b.sun = 8 * min(1, sinElev / 0.5) * clear
+                b.sun = sunCap(airF: h.temperatureF) * min(1, sinElev / 0.5) * clear
             } else {
                 b.clearNight = -3 * (1 - cloud)
             }

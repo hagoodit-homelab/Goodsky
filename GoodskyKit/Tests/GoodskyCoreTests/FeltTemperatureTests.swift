@@ -81,6 +81,24 @@ import Testing
         #expect(b.damp == 0)
     }
 
+    @Test func coldSunnyMorningDoesNotCountTheSunTwice() {
+        // 44° clear morning, rising fast. WeatherKit already says "feels 49" (some of that is sun).
+        // We used to start from 49 and add our own sun on top: "feels 56" while Josh was bundled up.
+        let b = felt(hour(8, temp: 44, feels: 49, cloud: 0), previous: hour(7, temp: 40))
+        #expect(b.baseF == 44)            // never start warmer than the air in the cold
+        #expect(b.sun > 0 && b.sun < 4)   // low November sun, trimmed for the cold
+        #expect(b.totalF < 50)
+    }
+
+    @Test func sunHelpsLessInTheCold() {
+        #expect(FeltTemperature.sunCap(airF: 60) == 8)
+        #expect(FeltTemperature.sunCap(airF: 50) == 8)
+        #expect(FeltTemperature.sunCap(airF: 45) == 6)
+        #expect(FeltTemperature.sunCap(airF: 40) == 4)
+        #expect(FeltTemperature.sunCap(airF: 20) == 4)
+        #expect(felt(hour(12, temp: 35, cloud: 0)).sun < felt(hour(12, temp: 55, cloud: 0)).sun)
+    }
+
     @Test func missingCloudCoverSkipsSunAndSky() {
         let day = felt(hour(12, temp: 60, cloud: nil))
         let night = felt(hour(23, temp: 60, cloud: nil))
