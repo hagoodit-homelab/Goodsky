@@ -51,6 +51,14 @@ public struct GoodskyReport: Codable, Sendable, Equatable {
         return feltBreakdowns.first(where: { $0.date == call.coldestHour })
     }
 
+    /// How a now/later panel's "feels 48°" got its number: the coldest hour in that stretch, picked the same way
+    /// the Jacket Call picks it. `nil` when the forecast has no hours in the stretch.
+    public func coldestBreakdown(in phase: JacketPhase) -> FeltTemperature.Breakdown? {
+        feltBreakdowns
+            .filter { $0.date < phase.end && $0.date.addingTimeInterval(3600) > phase.start }
+            .min(by: { $0.totalF < $1.totalF })
+    }
+
     public var symbolName: String {
         snapshot.hourly.last(where: { $0.date <= date && $0.date.addingTimeInterval(3600) > date })?.symbolName
             ?? snapshot.current.symbolName
