@@ -45,7 +45,8 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSLocationWhenInUseUsageDescription: Goodsky uses your location to decide whether you need a damn jacket.
         UILaunchScreen: {}
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Landscape too: the iPhone Duo can stand like a tent, and its inner display ignores this list anyway.
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Config/Goodsky.entitlements

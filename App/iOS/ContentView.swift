@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(WeatherModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showingSettings = false
 
     var body: some View {
@@ -14,16 +15,19 @@ struct ContentView: View {
                         if let banner = report.alertBanner {
                             AlertBannerView(banner: banner)
                         }
-                        JacketCallCard(report: report, snark: model.snark)
-                        CurrentConditionsCard(report: report)
-                        NavigationLink {
-                            RadarView(report: report)
-                        } label: {
-                            NextHourCard(summary: report.nextHour)
+                        if horizontalSizeClass == .regular {
+                            // iPhone Duo inner display (and any other regular-width space): two equal
+                            // columns. Equal widths put the gutter down the middle, over the fold.
+                            HStack(alignment: .top, spacing: 24) {
+                                VStack(spacing: 16) { callColumn(report) }
+                                    .frame(maxWidth: .infinity)
+                                VStack(spacing: 16) { forecastColumn(report) }
+                                    .frame(maxWidth: .infinity)
+                            }
+                        } else {
+                            callColumn(report)
+                            forecastColumn(report)
                         }
-                        .buttonStyle(.plain)
-                        HourlyStrip(report: report)
-                        DailyList(report: report)
                     } else if model.status == .loading {
                         ProgressView("Interrogating the sky…")
                             .frame(maxWidth: .infinity, minHeight: 300)
@@ -40,7 +44,10 @@ struct ContentView: View {
 
                     WeatherAttributionFooter()
                 }
+                // One column stays phone-width (e.g. landscape on the outer display); two columns can spread out.
+                .frame(maxWidth: horizontalSizeClass == .regular ? 1100 : 640)
                 .padding()
+                .frame(maxWidth: .infinity)
             }
             .background(SkyBackground(verdict: model.report?.call?.verdict))
             .navigationTitle(model.placeName ?? "Goodsky")
@@ -58,6 +65,26 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await model.refreshIfStale() } }
         }
+    }
+
+    /// The answer: Jacket Call, what it's like now, and the next hour.
+    @ViewBuilder
+    private func callColumn(_ report: GoodskyReport) -> some View {
+        JacketCallCard(report: report, snark: model.snark)
+        CurrentConditionsCard(report: report)
+        NavigationLink {
+            RadarView(report: report)
+        } label: {
+            NextHourCard(summary: report.nextHour)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The detail: 48 hours and 10 days.
+    @ViewBuilder
+    private func forecastColumn(_ report: GoodskyReport) -> some View {
+        HourlyStrip(report: report)
+        DailyList(report: report)
     }
 }
 
