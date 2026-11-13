@@ -91,9 +91,23 @@ line, with one template line as a style example. `SnarkPrompt.accept` throws the
 refuses, gets wholesome ("stay safe"), rambles, or contradicts the verdict. Then the template line
 stays. Widgets and the watch always use templates. There's a toggle in Settings.
 
+### iPhone Duo
+
+On the Duo's inner display the app gets regular width and height, and iOS ignores the orientation
+list. So the home screen keys off `horizontalSizeClass`, not the device: regular width gets two
+equal columns (Jacket Call, now and next hour on the left; 48 hours and 10 days on the right), so the
+gutter sits over the fold. Compact width keeps the single column, capped at phone width so
+landscape on the outer display doesn't stretch the cards. Landscape is allowed because the Duo can
+stand like a tent. Everything uses standard SwiftUI navigation, sheets and popovers, so safe areas
+and the iOS 27.1 vertical toolbar are handled by the system.
+
+Test it in Xcode 27.1's Device Hub (open, close, fold, rotate, and Split View on both sides).
+Building with the iOS 27.1 SDK lets the app reach the screen edge on the inner display; the
+deployment target stays at iOS 26.
+
 ## Building
 
-You need Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen). The `.xcodeproj` is
+You need Xcode 26 (27.1 for the iPhone Duo simulator) and [XcodeGen](https://github.com/yonaskolb/XcodeGen). The `.xcodeproj` is
 generated and not committed.
 
 ```bash
